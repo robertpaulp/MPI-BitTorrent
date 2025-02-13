@@ -1,0 +1,54 @@
+# Tema 2 APD
+
+## **Descriere Proiect**
+
+### **Componente**
+
+1. **Tracker**:
+   - Gestioneaza swarms (maparea fisierelor la peer-i si seed-uri).
+   - Ofera informatii despre peers si seeds catre clientii care solicita fisiere.
+   - Actualizeaza informatiile despre swarm pe masura ce peer-ii finalizeaza descarcari.
+
+
+2. **Peer-i**:
+   - **Initializare**:
+      - Fiecare peer citeste fisierul `in<Rank>.txt` pentru a determina fisierele pe care le detine.
+      - Tracker-ul isi actualizeaza `registered_files` si `swarm`
+
+   - **Descarcare Fisiere**:
+      - Prima data se face un request catre tracker pentru a obtine hash-urile si swarm-ul.
+      - Dupa configurarea initiala, peer-ul incepe sa descarce fisierele.
+         - Pentru primele 10 hash-uri in swarm nu exista peers si toate request-urile sunt trimise catre seed-uri.
+         - **Eficienta** : dupa ce incep sa apara peeri si atunci am folosit recomandarea din forum-ul de teme, unde primele 5 segmente sunt trimise catre peeri (daca dau fail de 2 ori, se trimite catre seed) si restul catre seed-uri.
+         - Dupa ce termin un fisier, il scriu pe disc si trimit un mesaj catre tracker prin care pot devenii seed pentru acel fisier.
+
+   - **Upload Fisiere**:
+      - Dupa ce primesc un request de la peer (file si hash), verific in lista la care sunt seeder si in lista la care sunt peer si trimit hash-ul. In cazul in care nu exista, trimit un mesaj de eroare.
+      - Upload-ul ramane pornit pana cand toate thread-urile de download s-au terminat si tracker-ul trimite exit signal-ul.
+
+### **Implementare**
+
+- Pentru a evita interferentele intre mesaje, am folosit tag-uri speciale pentru fiecare actiune in parte
+
+```cpp
+struct dataClient {
+    unordered_map<string, vector<string>> in_files;
+    unordered_map<string, vector<string>> desired_files;
+};
+```
+- De asemenea, majoritatea structurilor folosesc `unordered_map` (key : file, value : vector de hash-uri) pentru a stoca informatiile despre fisiere si hash-uri.
+
+```cpp
+struct downloadThreadArgs {
+    int rank;
+    unordered_map<string, vector<string>> desired_files;
+    unordered_map<string, vector<pair<string, bool>>> downloaded_files;
+};
+
+struct uploadThreadArgs {
+    int rank;
+    unordered_map<string, vector<string>> in_files;
+    unordered_map<string, vector<pair<string, bool>>> downloaded_files;
+};
+```
+- Pentru ca un client sa poata fii si peer si seed in acelasi timp, am dat `downloaded_files` ca parametru la thread-ul de upload si download.
